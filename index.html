@@ -6,118 +6,31 @@
     <title>Financial Sample - Profit by Country Map</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
-        body {
-            background-color: #f4f6f9;
-            color: #333;
-            padding: 20px;
-        }
-        .header {
-            margin-bottom: 20px;
-        }
-        .header h1 {
-            font-size: 22px;
-            color: #1a2530;
-        }
-        .header p {
-            font-size: 14px;
-            color: #666;
-        }
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        @media (max-width: 900px) {
-            .dashboard-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        .card {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            padding: 20px;
-        }
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            color: #2c3e50;
-        }
-        #map {
-            height: 400px;
-            width: 100%;
-            border-radius: 6px;
-        }
-        /* 修正地圖圓圈動畫：鎖定以圓心為縮放點 */
-        .leaflet-interactive {
-            transform-origin: center center !important;
-            transition: r 0.2s ease, transform 0.2s ease;
-        }
-        .leaflet-interactive:hover {
-            fill-opacity: 0.8 !important;
-            stroke-width: 3px !important;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-        th, td {
-            padding: 10px 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-        th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-        }
-        tr:hover {
-            background-color: #f1f5f9;
-        }
-        .num-col {
-            text-align: right;
-        }
-        .rank-badge {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            line-height: 20px;
-            text-align: center;
-            border-radius: 50%;
-            background: #e2e8f0;
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .rank-1 { background: #fef08a; color: #854d0e; }
-        .rank-2 { background: #e2e8f0; color: #475569; }
-        .rank-3 { background: #fed7aa; color: #9a3412; }
-    </style>
+    <!-- 自訂 CSS 樣式檔 -->
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
     <div class="header">
         <h1>Financial Sample — 視覺 3：依國家/地區劃分的利潤</h1>
-        <p>利潤總和地圖與各國數據分析 (Profit by Country Analysis)</p>
+        <p>點擊表格中的國家，地圖將自動平移並聚焦 (Click row to focus map)</p>
     </div>
 
     <div class="dashboard-grid">
         <!-- 地圖區域 -->
         <div class="card">
-            <div class="card-title">📍 利潤地理分佈圖 (Profit Map)</div>
+            <div class="card-header">
+                <div class="card-title">📍 利潤地理分佈圖 (Profit Map)</div>
+                <button class="btn-reset" onclick="resetMapView()">🌐 重置全景</button>
+            </div>
             <div id="map"></div>
         </div>
 
         <!-- 表格區域 -->
         <div class="card">
-            <div class="card-title">📊 各國利潤排名與占比</div>
+            <div class="card-header">
+                <div class="card-title">📊 各國利潤排名與占比（點擊國家可聚焦）</div>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -127,37 +40,8 @@
                         <th class="num-col">占比</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td><span class="rank-badge rank-1">1</span></td>
-                        <td>France (法國)</td>
-                        <td class="num-col">$3,319,782.41</td>
-                        <td class="num-col">22.46%</td>
-                    </tr>
-                    <tr>
-                        <td><span class="rank-badge rank-2">2</span></td>
-                        <td>Canada (加拿大)</td>
-                        <td class="num-col">$3,207,361.86</td>
-                        <td class="num-col">21.70%</td>
-                    </tr>
-                    <tr>
-                        <td><span class="rank-badge rank-3">3</span></td>
-                        <td>Germany (德國)</td>
-                        <td class="num-col">$3,120,950.45</td>
-                        <td class="num-col">21.12%</td>
-                    </tr>
-                    <tr>
-                        <td><span class="rank-badge">4</span></td>
-                        <td>Mexico (墨西哥)</td>
-                        <td class="num-col">$2,569,833.80</td>
-                        <td class="num-col">17.39%</td>
-                    </tr>
-                    <tr>
-                        <td><span class="rank-badge">5</span></td>
-                        <td>United States of America (美國)</td>
-                        <td class="num-col">$2,561,018.87</td>
-                        <td class="num-col">17.33%</td>
-                    </tr>
+                <tbody id="table-body">
+                    <!-- 由 JavaScript 動態生成帶有點擊事件的表格內容 -->
                 </tbody>
                 <tfoot>
                     <tr style="font-weight: bold; background-color: #f8f9fa;">
@@ -173,10 +57,14 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // 全域地圖設定點
+        const initialCenter = [30, 0];
+        const initialZoom = 2;
+
         // 初始化地圖
         const map = L.map('map', {
-            center: [30, 0],
-            zoom: 2,
+            center: initialCenter,
+            zoom: initialZoom,
             zoomSnap: 0.5
         });
 
@@ -186,18 +74,20 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // 各國數據
+        // 各國資料與精準座標點
         const countryData = [
-            { name: "France", lat: 46.2276, lng: 2.2137, profit: 3319782.41, share: "22.46%" },
-            { name: "Canada", lat: 56.1304, lng: -106.3468, profit: 3207361.86, share: "21.70%" },
-            { name: "Germany", lat: 51.1657, lng: 10.4515, profit: 3120950.45, share: "21.12%" },
-            { name: "Mexico", lat: 23.6345, lng: -102.5528, profit: 2569833.80, share: "17.39%" },
-            { name: "United States of America", lat: 37.0902, lng: -95.7129, profit: 2561018.87, share: "17.33%" }
+            { id: "france", rank: 1, badgeClass: "rank-1", name: "France (法國)", rawName: "France", lat: 46.2276, lng: 2.2137, zoom: 5, profit: "$3,319,782.41", rawProfit: 3319782.41, share: "22.46%" },
+            { id: "canada", rank: 2, badgeClass: "rank-2", name: "Canada (加拿大)", rawName: "Canada", lat: 56.1304, lng: -106.3468, zoom: 4, profit: "$3,207,361.86", rawProfit: 3207361.86, share: "21.70%" },
+            { id: "germany", rank: 3, badgeClass: "rank-3", name: "Germany (德國)", rawName: "Germany", lat: 51.1657, lng: 10.4515, zoom: 5, profit: "$3,120,950.45", rawProfit: 3120950.45, share: "21.12%" },
+            { id: "mexico", rank: 4, badgeClass: "", name: "Mexico (墨西哥)", rawName: "Mexico", lat: 23.6345, lng: -102.5528, zoom: 5, profit: "$2,569,833.80", rawProfit: 2569833.80, share: "17.39%" },
+            { id: "usa", rank: 5, badgeClass: "", name: "United States of America (美國)", rawName: "United States of America", lat: 37.0902, lng: -95.7129, zoom: 4, profit: "$2,561,018.87", rawProfit: 2561018.87, share: "17.33%" }
         ];
 
-        // 繪製以圓心進行縮放的圓圈
+        const mapMarkers = {};
+
+        // 1. 繪製地圖圓圈標記
         countryData.forEach(item => {
-            const radius = Math.sqrt(item.profit) * 220;
+            const radius = Math.sqrt(item.rawProfit) * 220;
 
             const circle = L.circle([item.lat, item.lng], {
                 color: '#2563eb',
@@ -207,17 +97,71 @@
                 radius: radius
             }).addTo(map);
 
-            circle.bindPopup(`
+            const popupContent = `
                 <div style="font-size:14px; padding:2px;">
                     <strong style="color:#1e3a8a;">${item.name}</strong><br/>
-                    <span style="color:#475569;">Profit 的總和:</span> <strong>$${item.profit.toLocaleString('en-US', {minimumFractionDigits: 2})}</strong><br/>
+                    <span style="color:#475569;">Profit 的總和:</span> <strong>${item.profit}</strong><br/>
                     <span style="color:#475569;">占比:</span> <strong>${item.share}</strong>
                 </div>
-            `, {
-                offset: [0, -5],
-                autoPan: false
+            `;
+
+            circle.bindPopup(popupContent, { offset: [0, -5], autoPan: false });
+
+            circle.on('click', () => {
+                focusCountry(item.id, false);
             });
+
+            mapMarkers[item.id] = { circle, data: item };
         });
+
+        // 2. 動態渲染表格並加入點擊事件
+        const tbody = document.getElementById('table-body');
+        countryData.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.className = 'clickable-row';
+            tr.id = `row-${item.id}`;
+            tr.innerHTML = `
+                <td><span class="rank-badge ${item.badgeClass}">${item.rank}</span></td>
+                <td>${item.name}</td>
+                <td class="num-col">${item.profit}</td>
+                <td class="num-col">${item.share}</td>
+            `;
+            
+            tr.addEventListener('click', () => {
+                focusCountry(item.id, true);
+            });
+
+            tbody.appendChild(tr);
+        });
+
+        // 3. 聚焦國家函數 (FlyTo Animation)
+        function focusCountry(countryId, flyMap = true) {
+            const target = mapMarkers[countryId];
+            if (!target) return;
+
+            document.querySelectorAll('tbody tr').forEach(row => row.classList.remove('active-row'));
+            
+            const targetRow = document.getElementById(`row-${countryId}`);
+            if (targetRow) targetRow.classList.add('active-row');
+
+            if (flyMap) {
+                map.flyTo([target.data.lat, target.data.lng], target.data.zoom, {
+                    duration: 1.2,
+                    easeLinearity: 0.25
+                });
+            }
+
+            setTimeout(() => {
+                target.circle.openPopup();
+            }, flyMap ? 800 : 0);
+        }
+
+        // 4. 重置地圖至全景視角
+        function resetMapView() {
+            document.querySelectorAll('tbody tr').forEach(row => row.classList.remove('active-row'));
+            map.closePopup();
+            map.flyTo(initialCenter, initialZoom, { duration: 1 });
+        }
     </script>
 </body>
 </html>
