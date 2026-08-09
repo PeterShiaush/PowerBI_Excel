@@ -1,833 +1,223 @@
 <!DOCTYPE html>
-<html lang="zh-TW" class="h-full bg-slate-950 text-slate-100">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Power BI 視覺效果 - 依國家/地區劃分的利潤 (Financial Sample)</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        pbi: {
-                            gold: '#F2C811',
-                            dark: '#111827',
-                            card: '#1F2937',
-                            accent: '#3B82F6',
-                            france: '#3B82F6',
-                            germany: '#10B981',
-                            canada: '#F59E0B',
-                            usa: '#EC4899',
-                            mexico: '#8B5CF6'
-                        }
-                    }
-                }
+    <title>Financial Sample - Profit by Country Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        body {
+            background-color: #f4f6f9;
+            color: #333;
+            padding: 20px;
+        }
+        .header {
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 22px;
+            color: #1a2530;
+        }
+        .header p {
+            font-size: 14px;
+            color: #666;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
             }
         }
-    </script>
-    
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Leaflet CSS & JS for Interactive Map -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <style>
-        .leaflet-container {
-            background-color: #0f172a !important;
-            border-radius: 0.75rem;
+        .card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            padding: 20px;
         }
-        .custom-popup .leaflet-popup-content-wrapper {
-            background: #1e293b;
-            color: #f8fafc;
-            border: 1px solid #334155;
-            border-radius: 0.75rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
         }
-        .custom-popup .leaflet-popup-tip {
-            background: #1e293b;
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 6px;
         }
-        /* Custom scrollbars */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+        /* 修正地圖圓圈動畫：鎖定以圓心為縮放點 */
+        .leaflet-interactive {
+            transform-origin: center center !important;
+            transition: r 0.2s ease, transform 0.2s ease;
         }
-        ::-webkit-scrollbar-track {
-            background: #0f172a;
+        .leaflet-interactive:hover {
+            fill-opacity: 0.8 !important;
+            stroke-width: 3px !important;
         }
-        ::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 3px;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
         }
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        tr:hover {
+            background-color: #f1f5f9;
+        }
+        .num-col {
+            text-align: right;
+        }
+        .rank-badge {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            border-radius: 50%;
+            background: #e2e8f0;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .rank-1 { background: #fef08a; color: #854d0e; }
+        .rank-2 { background: #e2e8f0; color: #475569; }
+        .rank-3 { background: #fed7aa; color: #9a3412; }
     </style>
 </head>
-<body class="h-full flex flex-col font-sans antialiased overflow-x-hidden selection:bg-amber-500 selection:text-slate-900">
+<body>
 
-    <!-- Top Header & Navigation Bar -->
-    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex flex-wrap justify-between items-center gap-4 sticky top-0 z-50">
-        <div class="flex items-center space-x-3">
-            <div class="w-9 h-9 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-bold text-xl shadow-lg shadow-amber-400/20">
-                <i class="fa-solid font-black fa-chart-pie"></i>
-            </div>
-            <div>
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs uppercase tracking-wider font-semibold text-amber-400">Power BI Report Replica</span>
-                    <span class="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-full border border-slate-700">Financial Sample</span>
-                </div>
-                <h1 class="text-lg font-bold text-white leading-tight">視覺 3：依國家/地區劃分的利潤 (Profit by Country Map)</h1>
-            </div>
+    <div class="header">
+        <h1>Financial Sample — 視覺 3：依國家/地區劃分的利潤</h1>
+        <p>利潤總和地圖與各國數據分析 (Profit by Country Analysis)</p>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- 地圖區域 -->
+        <div class="card">
+            <div class="card-title">📍 利潤地理分佈圖 (Profit Map)</div>
+            <div id="map"></div>
         </div>
 
-        <!-- Filter Bar -->
-        <div class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center bg-slate-800 rounded-lg border border-slate-700 px-3 py-1.5 text-xs">
-                <i class="fa-solid fa-filter text-amber-400 mr-2"></i>
-                <label for="segmentSelect" class="text-slate-400 mr-2">客戶區段:</label>
-                <select id="segmentSelect" onchange="applyFilters()" class="bg-transparent text-white font-medium focus:outline-none cursor-pointer">
-                    <option value="ALL" class="bg-slate-800">全部區段 (All Segments)</option>
-                    <option value="Government" class="bg-slate-800">Government (政府)</option>
-                    <option value="Small Business" class="bg-slate-800">Small Business (小型企業)</option>
-                    <option value="Enterprise" class="bg-slate-800">Enterprise (大型企業)</option>
-                    <option value="Midmarket" class="bg-slate-800">Midmarket (中型企業)</option>
-                    <option value="Channel Partners" class="bg-slate-800">Channel Partners (通路夥伴)</option>
-                </select>
-            </div>
-
-            <div class="flex items-center bg-slate-800 rounded-lg border border-slate-700 px-3 py-1.5 text-xs">
-                <i class="fa-solid fa-box text-blue-400 mr-2"></i>
-                <label for="productSelect" class="text-slate-400 mr-2">產品線:</label>
-                <select id="productSelect" onchange="applyFilters()" class="bg-transparent text-white font-medium focus:outline-none cursor-pointer">
-                    <option value="ALL" class="bg-slate-800">全部產品 (All Products)</option>
-                    <option value="Carretera" class="bg-slate-800">Carretera</option>
-                    <option value="Montana" class="bg-slate-800">Montana</option>
-                    <option value="Paseo" class="bg-slate-800">Paseo</option>
-                    <option value="Velo" class="bg-slate-800">Velo</option>
-                    <option value="VTT" class="bg-slate-800">VTT</option>
-                    <option value="Amarilla" class="bg-slate-800">Amarilla</option>
-                </select>
-            </div>
-
-            <button onclick="resetFilters()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition flex items-center">
-                <i class="fa-solid fa-rotate-right mr-1.5 text-slate-400"></i>重設篩選
-            </button>
+        <!-- 表格區域 -->
+        <div class="card">
+            <div class="card-title">📊 各國利潤排名與占比</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>排名</th>
+                        <th>國家 / 地區</th>
+                        <th class="num-col">Profit 的總和 (USD)</th>
+                        <th class="num-col">占比</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="rank-badge rank-1">1</span></td>
+                        <td>France (法國)</td>
+                        <td class="num-col">$3,319,782.41</td>
+                        <td class="num-col">22.46%</td>
+                    </tr>
+                    <tr>
+                        <td><span class="rank-badge rank-2">2</span></td>
+                        <td>Canada (加拿大)</td>
+                        <td class="num-col">$3,207,361.86</td>
+                        <td class="num-col">21.70%</td>
+                    </tr>
+                    <tr>
+                        <td><span class="rank-badge rank-3">3</span></td>
+                        <td>Germany (德國)</td>
+                        <td class="num-col">$3,120,950.45</td>
+                        <td class="num-col">21.12%</td>
+                    </tr>
+                    <tr>
+                        <td><span class="rank-badge">4</span></td>
+                        <td>Mexico (墨西哥)</td>
+                        <td class="num-col">$2,569,833.80</td>
+                        <td class="num-col">17.39%</td>
+                    </tr>
+                    <tr>
+                        <td><span class="rank-badge">5</span></td>
+                        <td>United States of America (美國)</td>
+                        <td class="num-col">$2,561,018.87</td>
+                        <td class="num-col">17.33%</td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight: bold; background-color: #f8f9fa;">
+                        <td colspan="2">總計 (Total)</td>
+                        <td class="num-col">$14,778,947.38</td>
+                        <td class="num-col">100.00%</td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
-    </header>
+    </div>
 
-    <main class="flex-1 p-4 lg:p-6 space-y-6 max-w-7xl mx-auto w-full">
-        
-        <!-- Highlight Banner -->
-        <div class="bg-gradient-to-r from-amber-500/10 via-blue-500/10 to-emerald-500/10 border border-amber-500/20 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div class="flex items-start space-x-3">
-                <div class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl mt-0.5">
-                    <i class="fa-solid fa-trophy text-xl"></i>
-                </div>
-                <div>
-                    <div class="text-xs font-semibold text-amber-400 uppercase tracking-wide">最高利潤國家分析 (Highest Profit Country)</div>
-                    <div class="text-lg font-bold text-white mt-0.5 flex items-center gap-2">
-                        <span>法國 (France)</span>
-                        <span class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
-                            利潤榜首 #1
-                        </span>
-                    </div>
-                    <p class="text-xs text-slate-400 mt-1">
-                        法國在 Financial Sample 資料集中累積總利潤高達 <strong class="text-emerald-400 font-semibold">$3,319,782.41</strong> 美元，佔全區總利潤的 <strong class="text-amber-300">22.46%</strong>。
-                    </p>
-                </div>
-            </div>
-            
-            <div class="flex items-center gap-2 self-end md:self-auto">
-                <button onclick="zoomToCountry('France')" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow transition flex items-center">
-                    <i class="fa-solid fa-location-crosshairs mr-1.5"></i>地圖定位至法國
-                </button>
-            </div>
-        </div>
-
-        <!-- Metric KPI Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <!-- Total Profit -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 relative overflow-hidden group hover:border-slate-700 transition">
-                <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
-                    <span>總利潤 (Total Profit)</span>
-                    <i class="fa-solid fa-coins text-emerald-400"></i>
-                </div>
-                <div id="kpiProfit" class="text-xl md:text-2xl font-black text-white mt-2">$14,778,947</div>
-                <div class="text-[11px] text-emerald-400 mt-1 flex items-center">
-                    <i class="fa-solid fa-arrow-trend-up mr-1"></i> 平均毛利率 14.2%
-                </div>
-                <div class="absolute -right-4 -bottom-4 w-16 h-16 bg-emerald-500/5 rounded-full group-hover:scale-150 transition-transform"></div>
-            </div>
-
-            <!-- Total Sales -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 relative overflow-hidden group hover:border-slate-700 transition">
-                <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
-                    <span>總銷售額 (Total Sales)</span>
-                    <i class="fa-solid fa-sack-dollar text-blue-400"></i>
-                </div>
-                <div id="kpiSales" class="text-xl md:text-2xl font-black text-white mt-2">$118,726,350</div>
-                <div class="text-[11px] text-slate-400 mt-1">
-                    折價金額: $9,205,248
-                </div>
-                <div class="absolute -right-4 -bottom-4 w-16 h-16 bg-blue-500/5 rounded-full group-hover:scale-150 transition-transform"></div>
-            </div>
-
-            <!-- Total Units Sold -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 relative overflow-hidden group hover:border-slate-700 transition">
-                <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
-                    <span>總銷售量 (Units Sold)</span>
-                    <i class="fa-solid fa-boxes-stacked text-amber-400"></i>
-                </div>
-                <div id="kpiUnits" class="text-xl md:text-2xl font-black text-white mt-2">1,128,975</div>
-                <div class="text-[11px] text-slate-400 mt-1">
-                    涵蓋 5 個主要國家地區
-                </div>
-                <div class="absolute -right-4 -bottom-4 w-16 h-16 bg-amber-500/5 rounded-full group-hover:scale-150 transition-transform"></div>
-            </div>
-
-            <!-- Top Performing Country -->
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 relative overflow-hidden group hover:border-slate-700 transition">
-                <div class="text-xs font-medium text-slate-400 flex items-center justify-between">
-                    <span>冠軍國家 (Top Country)</span>
-                    <i class="fa-solid fa-earth-americas text-purple-400"></i>
-                </div>
-                <div id="kpiTopCountry" class="text-xl md:text-2xl font-black text-amber-400 mt-2">France (法國)</div>
-                <div id="kpiTopShare" class="text-[11px] text-slate-400 mt-1">
-                    貢獻占比: 22.46%
-                </div>
-                <div class="absolute -right-4 -bottom-4 w-16 h-16 bg-purple-500/5 rounded-full group-hover:scale-150 transition-transform"></div>
-            </div>
-        </div>
-
-        <!-- Main Map Visual & Analytics Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            <!-- Left Column: Map Visual (Visual 3 Core Requirement) -->
-            <div class="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col shadow-xl">
-                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-                    <div>
-                        <h2 class="text-base font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-map-location-dot text-amber-400"></i>
-                            依國家/地區劃分的利潤地圖 (Map Visual)
-                        </h2>
-                        <p class="text-xs text-slate-400">泡泡大小代表總利潤金額 (Bubble size represents Profit magnitude)</p>
-                    </div>
-
-                    <div class="flex items-center space-x-2 text-xs">
-                        <button onclick="resetMapView()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition">
-                            <i class="fa-solid fa-globe mr-1"></i>重設地圖視野
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Leaflet Container -->
-                <div id="map" class="w-full h-[450px] z-10"></div>
-
-                <!-- Map Legend -->
-                <div class="mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
-                    <div class="flex items-center space-x-4">
-                        <span class="font-medium text-slate-300">國家泡泡圖例:</span>
-                        <div class="flex items-center space-x-1.5">
-                            <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
-                            <span>法國</span>
-                        </div>
-                        <div class="flex items-center space-x-1.5">
-                            <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-                            <span>德國</span>
-                        </div>
-                        <div class="flex items-center space-x-1.5">
-                            <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
-                            <span>加拿大</span>
-                        </div>
-                        <div class="flex items-center space-x-1.5">
-                            <span class="w-3 h-3 rounded-full bg-pink-500 inline-block"></span>
-                            <span>美國</span>
-                        </div>
-                        <div class="flex items-center space-x-1.5">
-                            <span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span>
-                            <span>墨西哥</span>
-                        </div>
-                    </div>
-                    <span class="text-[11px] text-slate-500">點擊地圖泡泡可查看詳細數據與段落拆解</span>
-                </div>
-            </div>
-
-            <!-- Right Column: Country Profit Ranking & Share -->
-            <div class="lg:col-span-4 space-y-6 flex flex-col justify-between">
-                
-                <!-- Country Ranking Bar Chart -->
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex-1 flex flex-col">
-                    <h3 class="text-sm font-bold text-white mb-2 flex items-center justify-between">
-                        <span>國家利潤排名 (Country Profit Ranking)</span>
-                        <i class="fa-solid fa-chart-simple text-amber-400"></i>
-                    </h3>
-                    <div class="flex-1 min-h-[220px] relative">
-                        <canvas id="rankingChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Profit Share Donut Chart -->
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
-                    <h3 class="text-sm font-bold text-white mb-2 flex items-center justify-between">
-                        <span>利潤貢獻佔比 (Profit Share)</span>
-                        <i class="fa-solid fa-chart-pie text-emerald-400"></i>
-                    </h3>
-                    <div class="h-[180px] relative">
-                        <canvas id="shareChart"></canvas>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Segment Breakdown & Detailed Table Section -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            <!-- Segment Breakdown Chart -->
-            <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
-                <h3 class="text-sm font-bold text-white mb-1 flex items-center justify-between">
-                    <span>各國家之客戶區段利潤拆解 (Profit by Segment per Country)</span>
-                    <i class="fa-solid fa-layer-group text-blue-400"></i>
-                </h3>
-                <p class="text-xs text-slate-400 mb-3">檢視政府 (Government)、小型企業 (Small Business) 等區段在各國的表現</p>
-                <div class="h-[280px] relative">
-                    <canvas id="segmentChart"></canvas>
-                </div>
-            </div>
-
-            <!-- AI Insight & Data Assistant Query Widget -->
-            <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
-                        智能數據分析助手 (AI Insight Generator)
-                    </h3>
-                    <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded">Gemini Powered</span>
-                </div>
-                <p class="text-xs text-slate-400 mb-3">輸入提問或點選下方快捷建議，獲得有關利潤與國家的深入分析：</p>
-
-                <!-- Preset Questions -->
-                <div class="flex flex-wrap gap-2 mb-3">
-                    <button onclick="askAI('分析為什麼法國的利潤最高？哪些產品與區段貢獻最大？')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 transition text-left">
-                        💡 法國利潤冠軍的主因？
-                    </button>
-                    <button onclick="askAI('比較德國與加拿大的利潤結構與差異')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 transition text-left">
-                        ⚖️ 德國 vs 加拿大利潤比較
-                    </button>
-                    <button onclick="askAI('墨西哥與美國的毛利率為何較低？建議改進點？')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 transition text-left">
-                        📉 美國/墨西哥改進建議
-                    </button>
-                </div>
-
-                <!-- Response Display Box -->
-                <div id="aiResponseBox" class="flex-1 bg-slate-950/70 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 overflow-y-auto max-h-[160px] leading-relaxed mb-3">
-                    點選上方按鈕或在下方輸入問題，即可獲得這 5 個國家利潤數據的生成式 AI 分析解讀。
-                </div>
-
-                <!-- Input Box -->
-                <div class="flex items-center gap-2">
-                    <input type="text" id="aiInput" placeholder="例如：哪一個產品在政府區段最賺錢？" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400">
-                    <button onclick="submitAIQuery()" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition flex items-center">
-                        <i class="fa-solid fa-paper-plane mr-1"></i>詢問
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Detailed Summary Data Table -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <div>
-                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-table text-emerald-400"></i>
-                        國家/地區完整財務數據總覽表 (Financial Summary Table)
-                    </h3>
-                    <p class="text-xs text-slate-400">詳細列出 5 個國家的總銷售額、折扣、成本、總利潤與毛利率</p>
-                </div>
-
-                <button onclick="exportToCSV()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg border border-slate-700 transition flex items-center">
-                    <i class="fa-solid fa-file-csv text-emerald-400 mr-1.5"></i>匯出 CSV
-                </button>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
-                    <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                        <tr>
-                            <th class="p-3">排名</th>
-                            <th class="p-3">國家/地區 (Country)</th>
-                            <th class="p-3 text-right">總銷售額 (Sales)</th>
-                            <th class="p-3 text-right">銷貨成本 (COGS)</th>
-                            <th class="p-3 text-right">給予折扣 (Discounts)</th>
-                            <th class="p-3 text-right">總利潤 (Profit)</th>
-                            <th class="p-3 text-right">毛利率 (%)</th>
-                            <th class="p-3 text-center">操作定位</th>
-                        </tr>
-                    </thead>
-                    <tbody id="countryTableBody" class="divide-y divide-slate-800/60 text-slate-300 font-medium">
-                        <!-- Populated via JavaScript -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-slate-900 border-t border-slate-800 py-3 text-center text-xs text-slate-500">
-        Power BI Replica Report | Data source: Microsoft Financial Sample Dataset | 視覺效果：依國家/地區劃分的利潤
-    </footer>
-
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Ground-truth Dataset aggregated directly from Power BI Table (Sorted by Profit descending)
-        const dataset = [
-            {
-                country: "France",
-                zhName: "法國",
-                coords: [46.2276, 2.2137],
-                profit: 3319782.41,
-                sales: 24354172.29,
-                cogs: 21034390.00,
-                discounts: 1761614.96,
-                units: 240931,
-                topSegment: "Government",
-                topProduct: "Paseo",
-                color: "#3B82F6",
-                rank: 1
-            },
-            {
-                country: "Canada",
-                zhName: "加拿大",
-                coords: [56.1304, -106.3468],
-                profit: 3207361.86,
-                sales: 24887654.89,
-                cogs: 21680293.00,
-                discounts: 2060136.11,
-                units: 247428.5,
-                topSegment: "Government",
-                topProduct: "Paseo",
-                color: "#F59E0B",
-                rank: 2
-            },
-            {
-                country: "Germany",
-                zhName: "德國",
-                coords: [51.1657, 10.4515],
-                profit: 3120950.45,
-                sales: 23505340.82,
-                cogs: 20384390.00,
-                discounts: 1718021.18,
-                units: 221312,
-                topSegment: "Government",
-                topProduct: "Paseo",
-                color: "#10B981",
-                rank: 3
-            },
-            {
-                country: "Mexico",
-                zhName: "墨西哥",
-                coords: [23.6345, -102.5528],
-                profit: 2569833.80,
-                sales: 20949352.11,
-                cogs: 18379518.00,
-                discounts: 1850294.14,
-                units: 203325,
-                topSegment: "Government",
-                topProduct: "Paseo",
-                color: "#8B5CF6",
-                rank: 4
-            },
-            {
-                country: "United States of America",
-                zhName: "美國",
-                coords: [37.0902, -95.7129],
-                profit: 2561018.87,
-                sales: 25026832.67,
-                cogs: 22465813.80,
-                discounts: 1815181.83,
-                units: 232627.5,
-                topSegment: "Government",
-                topProduct: "Paseo",
-                color: "#EC4899",
-                rank: 5
-            }
+        // 初始化地圖
+        const map = L.map('map', {
+            center: [30, 0],
+            zoom: 2,
+            zoomSnap: 0.5
+        });
+
+        // 載入地圖底圖
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 各國數據
+        const countryData = [
+            { name: "France", lat: 46.2276, lng: 2.2137, profit: 3319782.41, share: "22.46%" },
+            { name: "Canada", lat: 56.1304, lng: -106.3468, profit: 3207361.86, share: "21.70%" },
+            { name: "Germany", lat: 51.1657, lng: 10.4515, profit: 3120950.45, share: "21.12%" },
+            { name: "Mexico", lat: 23.6345, lng: -102.5528, profit: 2569833.80, share: "17.39%" },
+            { name: "United States of America", lat: 37.0902, lng: -95.7129, profit: 2561018.87, share: "17.33%" }
         ];
 
-        // Segment Breakdown per Country
-        const segmentBreakdown = {
-            "France": { "Government": 1330000, "Small Business": 810000, "Enterprise": -160000, "Midmarket": 330000, "Channel Partners": 1009782.41 },
-            "Canada": { "Government": 1280000, "Small Business": 770000, "Enterprise": -190000, "Midmarket": 310000, "Channel Partners": 1037361.86 },
-            "Germany": { "Government": 1250000, "Small Business": 750000, "Enterprise": -160000, "Midmarket": 300000, "Channel Partners": 980950.45 },
-            "Mexico": { "Government": 1040000, "Small Business": 610000, "Enterprise": -190000, "Midmarket": 240000, "Channel Partners": 869833.80 },
-            "United States of America": { "Government": 1030000, "Small Business": 600000, "Enterprise": -200000, "Midmarket": 240000, "Channel Partners": 891018.87 }
-        };
+        // 繪製以圓心進行縮放的圓圈
+        countryData.forEach(item => {
+            const radius = Math.sqrt(item.profit) * 220;
 
-        let map, rankingChartObj, shareChartObj, segmentChartObj;
-        let mapMarkers = {};
-
-        // Currency Formatter
-        function formatUSD(amount) {
-            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
-        }
-
-        function formatNum(num) {
-            return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(num);
-        }
-
-        window.onload = function() {
-            initMap();
-            initCharts();
-            renderTable();
-        };
-
-        function initMap() {
-            // Center map to display both North America and Europe
-            map = L.map('map', {
-                center: [42.0, -40.0],
-                zoom: 2,
-                minZoom: 2,
-                maxZoom: 7,
-                zoomControl: true
-            });
-
-            // Dark Mode Map Tile Layer (CartoDB Dark Matter)
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-                subdomains: 'abcd',
-                maxZoom: 19
+            const circle = L.circle([item.lat, item.lng], {
+                color: '#2563eb',
+                fillColor: '#3b82f6',
+                fillOpacity: 0.5,
+                weight: 2,
+                radius: radius
             }).addTo(map);
 
-            // Add Bubbles for each Country
-            dataset.forEach(data => {
-                // Calculate bubble radius based on profit magnitude
-                const minRadius = 18;
-                const maxRadius = 38;
-                const minProfit = 2900000;
-                const maxProfit = 3800000;
-                const radius = minRadius + ((data.profit - minProfit) / (maxProfit - minProfit)) * (maxRadius - minRadius);
-
-                const circle = L.circleMarker(data.coords, {
-                    radius: radius,
-                    fillColor: data.color,
-                    color: '#ffffff',
-                    weight: 2,
-                    opacity: 0.9,
-                    fillOpacity: 0.65,
-                    className: 'cursor-pointer hover:scale-110 transition-transform'
-                }).addTo(map);
-
-                // Popup content styling
-                const popupContent = `
-                    <div class="custom-popup p-3 min-w-[220px]">
-                        <div class="flex items-center justify-between border-b border-slate-700 pb-2 mb-2">
-                            <span class="font-bold text-sm text-white">${data.zhName} (${data.country})</span>
-                            <span class="bg-amber-400 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded">#${data.rank}</span>
-                        </div>
-                        <div class="space-y-1.5 text-xs">
-                            <div class="flex justify-between">
-                                <span class="text-slate-400">總利潤 (Profit):</span>
-                                <strong class="text-emerald-400">${formatUSD(data.profit)}</strong>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-400">總銷售額 (Sales):</span>
-                                <span class="text-white">${formatUSD(data.sales)}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-400">毛利率 (Margin):</span>
-                                <span class="text-blue-300 font-semibold">${((data.profit / data.sales) * 100).toFixed(1)}%</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-slate-400">主要客戶區段:</span>
-                                <span class="text-amber-300 font-medium">${data.topSegment}</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                circle.bindPopup(popupContent, { className: 'custom-popup' });
-                mapMarkers[data.country] = circle;
+            circle.bindPopup(`
+                <div style="font-size:14px; padding:2px;">
+                    <strong style="color:#1e3a8a;">${item.name}</strong><br/>
+                    <span style="color:#475569;">Profit 的總和:</span> <strong>$${item.profit.toLocaleString('en-US', {minimumFractionDigits: 2})}</strong><br/>
+                    <span style="color:#475569;">占比:</span> <strong>${item.share}</strong>
+                </div>
+            `, {
+                offset: [0, -5],
+                autoPan: false
             });
-        }
-
-        function initCharts() {
-            // 1. Ranking Horizontal Bar Chart
-            const ctxRank = document.getElementById('rankingChart').getContext('2d');
-            rankingChartObj = new Chart(ctxRank, {
-                type: 'bar',
-                data: {
-                    labels: dataset.map(d => d.zhName),
-                    datasets: [{
-                        label: '總利潤 (USD)',
-                        data: dataset.map(d => d.profit),
-                        backgroundColor: dataset.map(d => d.color),
-                        borderRadius: 6,
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: ctx => ` 利潤: ${formatUSD(ctx.raw)}`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: '#94a3b8', callback: v => `$${v/1000000}M` }
-                        },
-                        y: {
-                            grid: { display: false },
-                            ticks: { color: '#f8fafc', font: { weight: 'bold' } }
-                        }
-                    }
-                }
-            });
-
-            // 2. Share Donut Chart
-            const ctxShare = document.getElementById('shareChart').getContext('2d');
-            shareChartObj = new Chart(ctxShare, {
-                type: 'doughnut',
-                data: {
-                    labels: dataset.map(d => d.zhName),
-                    datasets: [{
-                        data: dataset.map(d => d.profit),
-                        backgroundColor: dataset.map(d => d.color),
-                        borderWidth: 2,
-                        borderColor: '#0f172a'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'right',
-                            labels: { color: '#cbd5e1', font: { size: 11 }, boxWidth: 12 }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: ctx => {
-                                    const total = dataset.reduce((a, b) => a + b.profit, 0);
-                                    const pct = ((ctx.raw / total) * 100).toFixed(2);
-                                    return ` ${ctx.label}: ${formatUSD(ctx.raw)} (${pct}%)`;
-                                }
-                            }
-                        }
-                    },
-                    cutout: '65%'
-                }
-            });
-
-            // 3. Segment Breakdown Stacked Bar Chart
-            const ctxSegment = document.getElementById('segmentChart').getContext('2d');
-            const segmentNames = ["Government", "Small Business", "Enterprise", "Midmarket", "Channel Partners"];
-            const segmentColors = ['#3B82F6', '#10B981', '#EF4444', '#F59E0B', '#8B5CF6'];
-
-            const datasetsSegment = segmentNames.map((seg, idx) => ({
-                label: seg,
-                data: dataset.map(d => segmentBreakdown[d.country][seg]),
-                backgroundColor: segmentColors[idx],
-                borderRadius: 4
-            }));
-
-            segmentChartObj = new Chart(ctxSegment, {
-                type: 'bar',
-                data: {
-                    labels: dataset.map(d => d.zhName),
-                    datasets: datasetsSegment
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: { color: '#cbd5e1', font: { size: 10 }, boxWidth: 10 }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: ctx => ` ${ctx.dataset.label}: ${formatUSD(ctx.raw)}`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            stacked: true,
-                            grid: { display: false },
-                            ticks: { color: '#cbd5e1' }
-                        },
-                        y: {
-                            stacked: true,
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: '#94a3b8', callback: v => `$${v/1000000}M` }
-                        }
-                    }
-                }
-            });
-        }
-
-        function renderTable() {
-            const tbody = document.getElementById('countryTableBody');
-            tbody.innerHTML = '';
-
-            dataset.forEach(d => {
-                const margin = ((d.profit / d.sales) * 100).toFixed(1);
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-800/50 transition cursor-pointer";
-                tr.innerHTML = `
-                    <td class="p-3 font-bold text-amber-400">#${d.rank}</td>
-                    <td class="p-3 flex items-center space-x-2">
-                        <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${d.color}"></span>
-                        <span class="font-bold text-white">${d.zhName} <span class="text-slate-500 font-normal">(${d.country})</span></span>
-                    </td>
-                    <td class="p-3 text-right font-mono">${formatUSD(d.sales)}</td>
-                    <td class="p-3 text-right font-mono text-slate-400">${formatUSD(d.cogs)}</td>
-                    <td class="p-3 text-right font-mono text-slate-400">${formatUSD(d.discounts)}</td>
-                    <td class="p-3 text-right font-mono text-emerald-400 font-bold">${formatUSD(d.profit)}</td>
-                    <td class="p-3 text-right">
-                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                            ${margin}%
-                        </span>
-                    </td>
-                    <td class="p-3 text-center">
-                        <button onclick="zoomToCountry('${d.country}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] rounded border border-slate-700 transition">
-                            <i class="fa-solid fa-location-dot text-amber-400 mr-1"></i>定位
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        // Action Handlers
-        function zoomToCountry(countryName) {
-            const data = dataset.find(d => d.country === countryName);
-            if (data && map) {
-                map.flyTo(data.coords, 5, { duration: 1.2 });
-                if (mapMarkers[countryName]) {
-                    setTimeout(() => {
-                        mapMarkers[countryName].openPopup();
-                    }, 1200);
-                }
-            }
-        }
-
-        function resetMapView() {
-            if (map) {
-                map.flyTo([42.0, -40.0], 2, { duration: 1 });
-            }
-        }
-
-        function applyFilters() {
-            const segment = document.getElementById('segmentSelect').value;
-            const product = document.getElementById('productSelect').value;
-
-            let multiplier = 1.0;
-            if (segment !== 'ALL') multiplier *= 0.35;
-            if (product !== 'ALL') multiplier *= 0.25;
-
-            // Update KPI values based on filter simulation
-            const totalProfit = dataset.reduce((a, b) => a + b.profit, 0) * multiplier;
-            const totalSales = dataset.reduce((a, b) => a + b.sales, 0) * multiplier;
-            const totalUnits = dataset.reduce((a, b) => a + b.units, 0) * multiplier;
-
-            document.getElementById('kpiProfit').innerText = formatUSD(totalProfit);
-            document.getElementById('kpiSales').innerText = formatUSD(totalSales);
-            document.getElementById('kpiUnits').innerText = formatNum(totalUnits);
-
-            // Animate Chart dataset updates
-            rankingChartObj.data.datasets[0].data = dataset.map(d => d.profit * multiplier);
-            shareChartObj.data.datasets[0].data = dataset.map(d => d.profit * multiplier);
-            
-            rankingChartObj.update();
-            shareChartObj.update();
-        }
-
-        function resetFilters() {
-            document.getElementById('segmentSelect').value = 'ALL';
-            document.getElementById('productSelect').value = 'ALL';
-            applyFilters();
-        }
-
-        function exportToCSV() {
-            let csv = 'Rank,Country,Sales,COGS,Discounts,Profit,MarginPercent\n';
-            dataset.forEach(d => {
-                const margin = ((d.profit / d.sales) * 100).toFixed(2);
-                csv += `${d.rank},"${d.country}",${d.sales},${d.cogs},${d.discounts},${d.profit},${margin}%\n`;
-            });
-
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'PowerBI_Profit_By_Country.csv');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        async function askAI(promptText) {
-            document.getElementById('aiInput').value = promptText;
-            submitAIQuery();
-        }
-
-        async function submitAIQuery() {
-            const query = document.getElementById('aiInput').value.trim();
-            if (!query) return;
-
-            const responseBox = document.getElementById('aiResponseBox');
-            responseBox.innerHTML = `<div class="flex items-center text-amber-400"><i class="fa-solid fa-spinner fa-spin mr-2"></i>AI 正在分析資料集中 5 個國家的利潤表現...</div>`;
-
-            const systemPrompt = `你是一位專業的高級 Data Analyst 與 Power BI 商業智慧專家。請根據 Financial Sample 資料集的以下數據回答問題：
-- 法國 (France): 利潤 $3,781,020.78, 銷售額 $24,354,172.29, 主要驅動區段: Government, 主要產品: Paseo
-- 德國 (Germany): 利潤 $3,680,388.82, 銷售額 $23,505,340.82
-- 加拿大 (Canada): 利潤 $3,529,228.89, 銷售額 $24,887,654.89
-- 美國 (USA): 利潤 $2,995,540.67, 銷售額 $25,026,832.67 (銷售額最高但利潤第4，因為成本較高)
-- 墨西哥 (Mexico): 利潤 $2,907,523.11, 銷售額 $20,949,352.11
-
-請用條理清晰、繁體中文且專業的口吻簡要回答（控制在 150 字以內），並給出商業決策建議。`;
-
-            try {
-                const apiKey = "";
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
-                const payload = {
-                    contents: [{ parts: [{ text: query }] }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] }
-                };
-
-                const res = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await res.json();
-                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                if (text) {
-                    responseBox.innerHTML = `<div class="text-slate-200"><strong>分析結果：</strong><br>${text.replace(/\n/g, '<br>')}</div>`;
-                } else {
-                    responseBox.innerHTML = `<span class="text-rose-400">無法獲取回應，請再試一次。</span>`;
-                }
-            } catch (err) {
-                responseBox.innerHTML = `<span class="text-amber-400">系統即時生成分析：</span><br><strong>${query}</strong><br>根據 Financial Sample 數據，法國以 $3,781,021 美元登頂利潤榜首，主要受惠於 Government (政府) 區段的高利潤率及 Paseo 產品熱銷。相反，美國雖然銷售額高達 $25.02M 居冠，但由於銷貨成本 (COGS) 居高不下導致毛利率下降，建議審視美國地區的行銷折扣與生產供應鏈成本。`;
-            }
-        }
+        });
     </script>
 </body>
 </html>
